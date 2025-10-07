@@ -1,76 +1,94 @@
-"""
-Network Packet Sniffer using Scapy
-Captures and displays IP, TCP, UDP, ICMP packets with payloads.
-"""
 
 from scapy.all import *
-import datetime
-import argparse
+import time
 
 def packet_callback(packet):
+    """
+    Callback function to analyze and display packet information.
+    """
+    # Check if the packet has an IP layer
     if packet.haslayer(IP):
-        ip = packet.getlayer(IP)
-        src_ip = ip.src
-        dst_ip = ip.dst
-        proto = ip.proto
+        ip_layer = packet[IP]
+        src_ip = ip_layer.src
+        dst_ip = ip_layer.dst
+        protocol = ip_layer.proto
 
-        # Protocol mapping
-        proto_names = {1: 'ICMP', 6: 'TCP', 17: 'UDP'}
-        proto_name = proto_names.get(proto, f'Unknown({proto})')
+        # Determine protocol name
+        proto_name = "Unknown"
+        if protocol == 6:
+            proto_name = "TCP"
+        elif protocol == 17:
+            proto_name = "UDP"
+        elif protocol == 1:
+            proto_name = "ICMP"
 
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{timestamp}] {proto_name}: {src_ip} → {dst_ip}")
+        print(f"\n[+] Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"    Source IP: {src_ip}")
+        print(f"    Destination IP: {dst_ip}")
+        print(f"    Protocol: {proto_name} (Protocol Number: {protocol})")
 
-        # TCP
+        # Check for TCP layer
         if packet.haslayer(TCP):
-            tcp = packet.getlayer(TCP)
-            print(f"    📦 TCP {tcp.sport} → {tcp.dport} | Flags: {tcp.flags}")
+            tcp_layer = packet[TCP]
+            print(f"    Source Port: {tcp_layer.sport}")
+            print(f"    Destination Port: {tcp_layer.dport}")
+            print(f"    Flags: {tcp_layer.flags}")
+
+            # Check for payload in TCP
             if packet.haslayer(Raw):
                 payload = packet[Raw].load
-                print(f"    💬 Payload (hex): {payload.hex()}")
-                print(f"    💬 Payload (text): {payload.decode('utf-8', errors='replace')}")
+                print(f"    Payload (Raw Data): {payload.hex()}")
 
-        # UDP
+        # Check for UDP layer
         elif packet.haslayer(UDP):
-            udp = packet.getlayer(UDP)
-            print(f"    📦 UDP {udp.sport} → {udp.dport}")
+            udp_layer = packet[UDP]
+            print(f"    Source Port: {udp_layer.sport}")
+            print(f"    Destination Port: {udp_layer.dport}")
+
             if packet.haslayer(Raw):
                 payload = packet[Raw].load
-                print(f"    💬 Payload (hex): {payload.hex()}")
-                print(f"    💬 Payload (text): {payload.decode('utf-8', errors='replace')}")
+                print(f"    Payload (Raw Data): {payload.hex()}")
 
-        # ICMP
+        # Check for ICMP layer
         elif packet.haslayer(ICMP):
-            icmp = packet.getlayer(ICMP)
-            print(f"    📦 ICMP Type: {icmp.type}, Code: {icmp.code}")
+            icmp_layer = packet[ICMP]
+            print(f"    ICMP Type: {icmp_layer.type}, Code: {icmp_layer.code}")
             if packet.haslayer(Raw):
                 payload = packet[Raw].load
-                print(f"    💬 Payload (hex): {payload.hex()}")
+                print(f"    Payload (Raw Data): {payload.hex()}")
 
+        # Print a separator
         print("-" * 80)
 
-def main():
-    parser = argparse.ArgumentParser(description="Network Packet Sniffer")
-    parser.add_argument("-f", "--filter", default="", help="BPF filter (e.g., 'tcp port 80')")
-    parser.add_argument("-c", "--count", type=int, default=0, help="Number of packets to capture (0 = infinite)")
-    args = parser.parse_args()
-
-    print("🚀 Starting Packet Capture...")
-    if args.filter:
-        print(f"🔧 Filter: '{args.filter}'")
-    print("💡 Press Ctrl+C to stop.\n")
+def start_sniffer(interface=None, count=0):
+    """
+    Start packet sniffing.
+    
+    :param interface: Network interface to sniff on (e.g., 'eth0', 'wlan0'). Use None for default.
+    :param count: Number of packets to capture (0 = infinite).
+    """
+    print("Starting packet sniffer... (Press Ctrl+C to stop)")
+    print("Listening on interface:", interface or "default")
+    print("-" * 80)
 
     try:
-        sniff(
-            prn=packet_callback,
-            filter=args.filter,
-            count=args.count,
-            store=0
-        )
-    except PermissionError:
-        print("❌ Error: Permission denied. Run with sudo (Linux/Mac) or as Admin (Windows).")
+        # Start sniffing
+        sniff(iface=interface, prn=packet_callback, count=count, store=False)
+    except KeyboardInterrupt:
+        print("\n[!] Packet sniffing stopped by user.")
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"[!] Error: {e}")
 
 if __name__ == "__main__":
-    main()
+    # Optional: List available interfaces
+    print("Available interfaces:")
+    print(get_if_list())
+    print()
+
+    # Choose interface (you can change this)
+    interface_name = input("Enter interface to sniff on (or press Enter for default): ").strip()
+    if not interface_name:
+        interface_name = None
+
+    # Start the sniffer
+    start_sniffer(interface=interface_name, count=0)
